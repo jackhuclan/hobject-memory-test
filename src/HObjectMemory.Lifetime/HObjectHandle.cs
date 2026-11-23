@@ -24,14 +24,24 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
     /// </summary>
     /// <param name="value">资源实例。</param>
     public HObjectHandle(T? value)
+        : this(value, isAlive: null)
+    {
+    }
+
+    internal HObjectHandle(T? value, Func<T, bool>? isAlive)
     {
         if (value is null)
         {
             return;
         }
 
-        _owner = new RefCountedOwner<T>(value);
+        _owner = new RefCountedOwner<T>(value, isAlive);
     }
+
+    /// <summary>
+    /// 诊断用：读取底层控制块，不延长生命周期。
+    /// </summary>
+    internal RefCountedOwner<T>? Owner => Volatile.Read(ref _owner);
 
     /// <summary>
     /// 空句柄。所有操作均安全，且不持有任何资源。

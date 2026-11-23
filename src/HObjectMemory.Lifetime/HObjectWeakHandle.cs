@@ -15,6 +15,11 @@ public sealed class HObjectWeakHandle<T> : IDisposable where T : class, IDisposa
     }
 
     /// <summary>
+    /// 诊断用：读取底层控制块，不延长生命周期。
+    /// </summary>
+    internal RefCountedOwner<T>? Owner => Volatile.Read(ref _owner);
+
+    /// <summary>
     /// 空弱句柄。所有操作均安全。
     /// </summary>
     public static HObjectWeakHandle<T> Empty { get; } = new HObjectWeakHandle<T>(null);

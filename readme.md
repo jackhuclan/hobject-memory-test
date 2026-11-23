@@ -16,22 +16,53 @@ GenImageConst → Threshold → Connection → AreaCenter / CountObj
 ├── dlls/                              # Halcon 24.5 XL 运行库（托管 + 原生）
 │   ├── halcondotnetxl.dll
 │   └── halconxl.dll
+├── tools/
+│   └── HObjectHolderGenerator/        # 根据 Halcon 元数据生成全部 out HObject 包装方法
 └── src/
-    ├── HObjectLifetime.slnx           # 统一解决方案，包含下列 3 个项目
+    ├── HObjectLifetime.slnx           # 统一解决方案，包含下列 5 个项目
     ├── HObjectMemory.Lifetime/        # 自定义 HObjectHandle<T> 引用计数句柄类库
+    │   ├── HObjectHolder.cs           # out HObject 算子的生命周期包装核心
+    │   ├── HObjectHolder.Generated.cs # 生成的 598 个包装方法（勿手改）
     │   └── Rectangle1TestData.cs      # 两个项目共用的 GenRectangle1 参数用例
     ├── HObjectMemoryTest/             # 项目一：低 GC 压力的自定义基准
-    └── HobjectBenchmark/              # 项目二：BenchmarkDotNet 基准
-        ├── GenRectangle1Lifecycle.cs  # GenRectangle1 三种生命周期实现
-        └── GenRectangle1Benchmarks.cs # GenRectangle1 独立基准入口
+    ├── HobjectBenchmark/              # 项目二：BenchmarkDotNet 基准
+    │   ├── GenRectangle1Lifecycle.cs  # GenRectangle1 三种生命周期实现
+    │   └── GenRectangle1Benchmarks.cs # GenRectangle1 独立基准入口
+    └── HObjectHolderVerify/           # HObjectHolder 签名一致性与生命周期验证
 ```
 
 > `HObjectHandle<T>` 是本仓库 `HObjectMemory.Lifetime` 项目中的**自定义引用计数句柄**，不是 Halcon 内置类型。它支持 `Share()` 共享、`Move()` 转移、`AsWeak()` 弱观察，并保证最后一个强句柄释放时底层资源只 `Dispose` 一次。
 
+## HObjectHolder：out HObject 算子的生命周期包装
+
+`HObjectHolder` 把 `HOperatorSet` 中所有以 `out HObject` 输出结果的方法包装为 `out HObjectWeakHandle<HObject>`。当前 HALCON 24.5 XL 下共 598 个方法、683 个 `out HObject` 参数（含 55 个多输出方法）；生成规则由 `tools/HObjectHolderGenerator` 从程序集元数据推导，**返回类型、参数名、参数顺序、其他参数的 out/ref 语义均与原方法一致**，唯一变化是输出参数类型。
+
+核心成员与流程：
+
+| 成员 | 作用 |
+|---|---|
+| `TrackedObjectCount` / `IsDisposed` | 监控容器持有的强引用锚点数量与容器状态 |
+| `GetStrongRefCount(weak)` | 读取控制块当前强引用计数（锚点 + 已提升强句柄） |
+| `Borrow(weak)` / `TryBorrow(weak, out h)` | 把弱句柄提升为强句柄；外部已 `Dispose` 的 HObject 无法提升 |
+| `Release(weak)` | 提前释放单个锚点；仍有强句柄时资源延后释放 |
+| `Dispose()` / 终结器 | 一次性释放全部锚点；可重复调用，最后一次强引用归零时自动 `Dispose` HObject |
+
+生命周期：`算子 out → 原始 HObject → RefCountedOwner（强计数 1，容器锚点）→ 返回弱句柄`；需要传给普通算子时用 `Borrow` 提升为强句柄（计数 +1），用完 `Dispose`；容器 `Dispose` 释放锚点，若强计数归零则由 `RefCountedOwner.ReleaseStrong()` 确定性释放底层 HObject。弱句柄本身不延长生命周期，也不暴露已释放对象。
+
+异常安全：算子调用失败时，包装方法释放已经写入的 `out HObject`、把输出置为空弱句柄，并原样重抛原始异常；多输出场景一次性提交锚点，避免部分登记。并发场景通过锁保护锚点集合，`HObjectHolderVerify` 用 64 路并行调用与重复 `Dispose` 做了覆盖。
+
+```bash
+# 重新生成包装方法（HALCON 版本变化后执行）
+dotnet run --project tools/HObjectHolderGenerator -- dlls/halcondotnetxl.dll src/HObjectMemory.Lifetime/HObjectHolder.Generated.cs
+
+# 验证签名一致性与生命周期边界
+dotnet run --project src/HObjectHolderVerify/HObjectHolderVerify.csproj -c Release
+```
+
 ## 前置条件
 
 - Windows x64，已安装 Halcon 24.5 XL 运行库及有效 License。
-- 仓库自带 `dlls/halcondotnetxl.dll` 与 `dlls/halconxl.dll`；两个可执行项目会将它们复制到输出目录。**不要删除 `dlls/`**，否则运行期会报 `DllNotFoundException`。
+- 仓库自带 `dlls/halcondotnetxl.dll` 与 `dlls/halconxl.dll`；各可执行项目会将它们复制到输出目录。**不要删除 `dlls/`**，否则运行期会报 `DllNotFoundException`。
 - .NET 10 SDK（当前项目 `TargetFramework` 为 `net10.0`）。
 - 若要运行 `HobjectBenchmark`，还需安装 .NET 8 运行时：其基准配置显式指定 `CoreRuntime.Core80`（`HObjectLifecycleBenchmarks.cs` 中的 `HObjectBenchmarkConfig`）。
 
