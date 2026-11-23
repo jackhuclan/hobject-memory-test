@@ -19,11 +19,12 @@ GenImageConst → Threshold → Connection → AreaCenter / CountObj
 ├── tools/
 │   └── HObjectHolderGenerator/        # 根据 Halcon 元数据生成全部 out HObject 包装方法
 └── src/
-    ├── HObjectLifetime.slnx           # 统一解决方案，包含下列 5 个项目
+    ├── HObjectLifetime.slnx           # 统一解决方案，包含下列 6 个项目
     ├── HObjectMemory.Lifetime/        # 自定义 HObjectHandle<T> 引用计数句柄类库
     │   ├── HObjectHolder.cs           # out HObject 算子的生命周期包装核心
     │   ├── HObjectHolder.Generated.cs # 生成的 598 个包装方法（勿手改）
     │   └── Rectangle1TestData.cs      # 两个项目共用的 GenRectangle1 参数用例
+    ├── HObjectMemory.Lifetime.Tests/  # MSTest 单元测试：类库全部类型与分支
     ├── HObjectMemoryTest/             # 项目一：低 GC 压力的自定义基准
     ├── HobjectBenchmark/              # 项目二：BenchmarkDotNet 基准
     │   ├── GenRectangle1Lifecycle.cs  # GenRectangle1 三种生命周期实现
@@ -57,6 +58,9 @@ dotnet run --project tools/HObjectHolderGenerator -- dlls/halcondotnetxl.dll src
 
 # 验证签名一致性与生命周期边界
 dotnet run --project src/HObjectHolderVerify/HObjectHolderVerify.csproj -c Release
+
+# 运行类库单元测试（MSTest，含覆盖率收集）
+dotnet test src/HObjectMemory.Lifetime.Tests/HObjectMemory.Lifetime.Tests.csproj -c Release --collect:"XPlat Code Coverage"
 ```
 
 ## 前置条件

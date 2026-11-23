@@ -5,6 +5,7 @@
 [Rr]elease/
 artifacts/
 BenchmarkDotNet.Artifacts/
+TestResults/
 
 # IDE / editor state
 .vs/
