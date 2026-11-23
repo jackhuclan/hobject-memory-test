@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="HobjectBenchmark/HobjectBenchmark.csproj" Id="4db9be86-2e73-4d91-a9b0-3edb5b4a6bde" />
+    <Project Path="HObjectMemory.Lifetime/HObjectMemory.Lifetime.csproj" Id="4a91f35b-558e-42b8-b79a-80bffe94857e" />
+    <Project Path="HObjectMemoryTest/HObjectMemoryTest.csproj" />
+  </Folder>
+</Solution>

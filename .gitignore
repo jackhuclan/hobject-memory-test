@@ -1,0 +1,29 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+BenchmarkDotNet.Artifacts/
+
+# IDE / editor state
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# WorkBuddy internal notes (not part of the deliverable)
+.workbuddy/
+
+# Redundant Halcon DLL copies next to projects; canonical copies live in /dlls
+src/HObjectMemoryTest/halcondotnetxl.dll
+src/HObjectMemoryTest/halconxl.dll
+src/HobjectBenchmark/halcondotnetxl.dll
+src/HobjectBenchmark/halconxl.dll
+
+# OS files
+Thumbs.db
+.DS_Store
