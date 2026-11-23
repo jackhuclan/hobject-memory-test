@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="../.gitignore" />
+    <File Path="../readme.md" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="HobjectBenchmark/HobjectBenchmark.csproj" Id="4db9be86-2e73-4d91-a9b0-3edb5b4a6bde" />
     <Project Path="HObjectMemory.Lifetime/HObjectMemory.Lifetime.csproj" Id="4a91f35b-558e-42b8-b79a-80bffe94857e" />

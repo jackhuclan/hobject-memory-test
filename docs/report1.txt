@@ -1,0 +1,54 @@
+PS E:\hobject-memory-test\src\HObjectMemoryTest> dotnet run -c Release -- --operator rectangle1 --iterations 500 --warmup 20
+[自检] PASS  Share 后仅最后一个句柄释放
+[自检] PASS  Move 转移所有权并清空源句柄
+[自检] PASS  重复 Dispose 幂等
+[自检] PASS  释放后访问 Value 抛异常
+[自检] PASS  弱引用可在存活期提升
+[自检] HObjectHandle 共享/转移/幂等/弱引用语义全部通过。
+=== Halcon HObject 生命周期基准测试 ===
+配置: operator=rectangle1, iterations=500, warmup=20, image=512x512, group=both
+环境: .NET 10.0.15, x64=True, HalconDotNet=24.5.0.0
+
+[Handle/Normal_256x256] 完成: 115.7 ms, 内存增量 0.8 MB, 峰值增量 0.8 MB
+[Direct/Normal_256x256] 完成: 112.9 ms, 内存增量 0.0 MB, 峰值增量 0.0 MB
+[Handle/Small_1x1] 完成: 114.2 ms, 内存增量 2.9 MB, 峰值增量 2.9 MB
+[Direct/Small_1x1] 完成: 115.5 ms, 内存增量 0.1 MB, 峰值增量 0.1 MB
+[Handle/Wide_512x8] 完成: 114.1 ms, 内存增量 -0.0 MB, 峰值增量 0.0 MB
+[Direct/Wide_512x8] 完成: 114.3 ms, 内存增量 0.2 MB, 峰值增量 0.2 MB
+[Handle/Tall_8x512] 完成: 116.3 ms, 内存增量 0.0 MB, 峰值增量 0.0 MB
+[Direct/Tall_8x512] 完成: 113.7 ms, 内存增量 0.3 MB, 峰值增量 0.3 MB
+[Handle/Large_1024x1024] 完成: 116.2 ms, 内存增量 0.0 MB, 峰值增量 0.0 MB
+[Direct/Large_1024x1024] 完成: 114.4 ms, 内存增量 -0.0 MB, 峰值增量 0.0 MB
+[Handle/Line_ZeroWidth] 完成: 112.7 ms, 内存增量 -0.0 MB, 峰值增量 0.0 MB
+[Direct/Line_ZeroWidth] 完成: 114.8 ms, 内存增量 0.0 MB, 峰值增量 0.0 MB
+[Handle/NegativeOrigin] 完成: 110.9 ms, 内存增量 0.0 MB, 峰值增量 0.0 MB
+[Direct/NegativeOrigin] 完成: 108.4 ms, 内存增量 -0.0 MB, 峰值增量 0.0 MB
+
+| 组     | 用例              | 坐标 (r1,c1)-(r2,c2) | 区域(宽x高) | 迭代 | 总耗时(ms) | 平均(us/次) | 增量(MB) | 峰值增量(MB) | GC后增量(MB) | GC 0/1/2 |
+|--------|-------------------|----------------------|-------------|-----:|-----------:|------------:|---------:|-------------:|-------------:|----------|
+| Handle | Normal_256x256    | (64,64)-(319,319) | 256x256 |   500 |      115.7 |       231.4 |      0.8 |          0.8 |          0.8 | 0/0/0 |
+| Direct | Normal_256x256    | (64,64)-(319,319) | 256x256 |   500 |      112.9 |       225.7 |      0.0 |          0.0 |          0.0 | 0/0/0 |
+| Handle | Small_1x1         | (10,10)-(10,10) | 1x1 |   500 |      114.2 |       228.4 |      2.9 |          2.9 |          2.9 | 0/0/0 |
+| Direct | Small_1x1         | (10,10)-(10,10) | 1x1 |   500 |      115.5 |       231.0 |      0.1 |          0.1 |          0.1 | 0/0/0 |
+| Handle | Wide_512x8        | (10,10)-(17,521) | 512x8 |   500 |      114.1 |       228.2 |     -0.0 |          0.0 |         -0.0 | 0/0/0 |
+| Direct | Wide_512x8        | (10,10)-(17,521) | 512x8 |   500 |      114.3 |       228.6 |      0.2 |          0.2 |          0.2 | 0/0/0 |
+| Handle | Tall_8x512        | (10,10)-(521,17) | 8x512 |   500 |      116.3 |       232.6 |      0.0 |          0.0 |          0.0 | 0/0/0 |
+| Direct | Tall_8x512        | (10,10)-(521,17) | 8x512 |   500 |      113.7 |       227.3 |      0.3 |          0.3 |          0.3 | 0/0/0 |
+| Handle | Large_1024x1024   | (0,0)-(1023,1023) | 1024x1024 |   500 |      116.2 |       232.4 |      0.0 |          0.0 |         -0.0 | 0/0/0 |
+| Direct | Large_1024x1024   | (0,0)-(1023,1023) | 1024x1024 |   500 |      114.4 |       228.9 |     -0.0 |          0.0 |          0.0 | 0/0/0 |
+| Handle | Line_ZeroWidth    | (100,100)-(199,100) | 1x100 |   500 |      112.7 |       225.4 |     -0.0 |          0.0 |         -0.0 | 0/0/0 |
+| Direct | Line_ZeroWidth    | (100,100)-(199,100) | 1x100 |   500 |      114.8 |       229.6 |      0.0 |          0.0 |          0.0 | 0/0/0 |
+| Handle | NegativeOrigin    | (-50,-20)-(20,30) | 51x71 |   500 |      110.9 |       221.8 |      0.0 |          0.0 |         -0.0 | 0/0/0 |
+| Direct | NegativeOrigin    | (-50,-20)-(20,30) | 51x71 |   500 |      108.4 |       216.9 |     -0.0 |          0.0 |         -0.0 | 0/0/0 |
+
+说明:
+  - 每个用例独立预热并强制 GC，逐用例基线互不污染。
+  - 内存指标取 PrivateMemorySize64，含 Halcon 非托管内存。
+  - Normal_256x256: 耗时比 Direct/Handle=0.98x, Direct 增量=0.0 MB, Handle 增量=0.8 MB
+  - Small_1x1: 耗时比 Direct/Handle=1.01x, Direct 增量=0.1 MB, Handle 增量=2.9 MB
+  - Wide_512x8: 耗时比 Direct/Handle=1.00x, Direct 增量=0.2 MB, Handle 增量=-0.0 MB
+  - Tall_8x512: 耗时比 Direct/Handle=0.98x, Direct 增量=0.3 MB, Handle 增量=0.0 MB
+  - Large_1024x1024: 耗时比 Direct/Handle=0.98x, Direct 增量=-0.0 MB, Handle 增量=0.0 MB
+  - Line_ZeroWidth: 耗时比 Direct/Handle=1.02x, Direct 增量=0.0 MB, Handle 增量=-0.0 MB
+  - NegativeOrigin: 耗时比 Direct/Handle=0.98x, Direct 增量=-0.0 MB, Handle 增量=0.0 MB
+  - 校验值 sink=29120（非 0 表示算子结果确实被计算）

@@ -1,0 +1,28 @@
+PS E:\hobject-memory-test\src\HObjectMemoryTest> dotnet run -c Release -- --iterations 5000 --width 1024 --height 1024
+[自检] PASS  Share 后仅最后一个句柄释放
+[自检] PASS  Move 转移所有权并清空源句柄
+[自检] PASS  重复 Dispose 幂等
+[自检] PASS  释放后访问 Value 抛异常
+[自检] PASS  弱引用可在存活期提升
+[自检] HObjectHandle 共享/转移/幂等/弱引用语义全部通过。
+=== Halcon HObject 生命周期基准测试 ===
+配置: operator=chain, iterations=5000, warmup=200, image=1024x1024, group=both
+环境: .NET 10.0.15, x64=True, HalconDotNet=24.5.0.0
+
+[Handle] 完成: 1267.1 ms, 内存增量 14.8 MB, 峰值增量 14.8 MB
+[Direct] 完成: 2577.5 ms, 内存增量 7309.6 MB, 峰值增量 7309.6 MB
+
+| 组       | 迭代 | 总耗时(ms) | 平均(us/次) | 起始(MB) | 结束(MB) | 增量(MB) | 峰值增量(MB) | GC后增量(MB) | GC 0/1/2 |
+|----------|-----:|-----------:|------------:|---------:|---------:|---------:|-------------:|-------------:|----------|
+| Direct   |  5000 |     2577.5 |       515.5 |    388.4 |   7698.1 |   7309.6 |       7309.6 |       7310.0 | 0/0/0 |
+| Handle   |  5000 |     1267.1 |       253.4 |     51.9 |     66.7 |     14.8 |         14.8 |         14.9 | 0/0/0 |
+
+说明:
+  - 内存指标取 PrivateMemorySize64（私有字节），能反映 Halcon 在非托管堆上的分配。
+  - 执行顺序: Handle -> Direct（避免 Direct 的残留影响 Handle 基线）。
+  - 耗时比 Direct/Handle: 2.03x
+  - 峰值内存增量比 Direct/Handle: 492.31x
+  - Handle 组结束增量 14.8 MB，Direct 组结束增量 7309.6 MB。
+  - 重复运行请加 -c Release；需要绝对隔离时可分别执行 --group handle / --group direct。
+  - 本次采样间隔: 自动。
+校验值 sink=41600（非 0 表示算子结果确实被计算）

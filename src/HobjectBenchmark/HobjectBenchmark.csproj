@@ -23,8 +23,5 @@
   </ItemGroup>
 
   <!-- 原生 Halcon 运行库不会随托管引用复制，需显式带到输出目录 -->
-  <ItemGroup>
-    <Content Include="..\..\dlls\halconxl.dll" Link="halconxl.dll" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
 
 </Project>
