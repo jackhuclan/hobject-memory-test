@@ -13,6 +13,8 @@ GenImageConst → Threshold → Connection → AreaCenter / CountObj
 ```
 .
 ├── readme.md
+├── docs/
+│   └── HObjectLifetime-Beginners-Guide.md # HObjectHandle / WeakHandle / Holder 中文入门手册
 ├── dlls/                              # Halcon 24.5 XL 运行库（托管 + 原生）
 │   ├── halcondotnetxl.dll
 │   └── halconxl.dll
@@ -41,6 +43,8 @@ GenImageConst → Threshold → Connection → AreaCenter / CountObj
 `HObjectHolder` 把 `HOperatorSet` 中所有以 `out HObject` 输出结果的方法包装为 `out HObjectWeakHandle<HObject>`。当前 HALCON 24.5 XL 下共 598 个方法、683 个 `out HObject` 参数（含 55 个多输出方法）；生成规则由 `tools/HObjectHolderGenerator` 从程序集元数据推导，**返回类型、参数名、参数顺序、其他参数的 out/ref 语义均与原方法一致**，唯一变化是输出参数类型。
 
 公共契约由 `IHObjectHolder` 定义：核心生命周期成员位于 `IHObjectHolder.cs`，598 个算子包装声明位于 `IHObjectHolder.Generated.cs`，`HObjectHolder` 实现该接口。业务代码可使用 `IHObjectHolder holder = new HObjectHolder();` 依赖抽象；原有 `HObjectHolder` 具体类型声明与调用保持兼容。
+
+面向初学者的三句柄使用手册见 [HObjectLifetime-Beginners-Guide.md](docs/HObjectLifetime-Beginners-Guide.md)。
 
 核心成员与流程：
 
