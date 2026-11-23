@@ -6,9 +6,10 @@ namespace HObjectMemory.Lifetime;
 /// <typeparam name="T">可释放的资源类型，例如 HalconDotNet.HObject。</typeparam>
 public sealed class HObjectWeakHandle<T> : IDisposable where T : class, IDisposable
 {
-    private RefCountedOwner<T> _owner;
+    // null 表示空观察者（Dispose 后或初始空实例），这是该类型的合法状态。
+    private RefCountedOwner<T>? _owner;
 
-    internal HObjectWeakHandle(RefCountedOwner<T> owner)
+    internal HObjectWeakHandle(RefCountedOwner<T>? owner)
     {
         _owner = owner;
     }
@@ -25,7 +26,7 @@ public sealed class HObjectWeakHandle<T> : IDisposable where T : class, IDisposa
     {
         get
         {
-            RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+            RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
             return owner != null && !owner.IsDisposed;
         }
     }
@@ -37,7 +38,7 @@ public sealed class HObjectWeakHandle<T> : IDisposable where T : class, IDisposa
     /// <returns>是否提升成功。</returns>
     public bool TryGetTarget(out HObjectHandle<T> target)
     {
-        RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+        RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
         if (owner is null || !owner.TryAddStrongRef())
         {
             target = HObjectHandle<T>.Empty;
@@ -53,7 +54,7 @@ public sealed class HObjectWeakHandle<T> : IDisposable where T : class, IDisposa
     /// </summary>
     public void Dispose()
     {
-        RefCountedOwner<T> owner = Interlocked.Exchange(ref _owner, null);
+        RefCountedOwner<T>? owner = Interlocked.Exchange(ref _owner, null);
         if (owner != null)
         {
             owner.ReleaseWeak();

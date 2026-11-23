@@ -17,10 +17,8 @@ public static class GenRectangle1Lifecycle
     /// <summary>方式一：创建矩形但不主动释放，依赖 GC/终结器。</summary>
     public static void DirectNoDispose(Rectangle1Case testCase)
     {
-        HObject rectangle = null;
-
         HOperatorSet.GenRectangle1(
-            out rectangle,
+            out HObject rectangle,
             new HTuple(testCase.Row1),
             new HTuple(testCase.Column1),
             new HTuple(testCase.Row2),
@@ -41,16 +39,17 @@ public static class GenRectangle1Lifecycle
     /// <summary>方式二：裸 HObject + try/finally 逆序 Dispose。</summary>
     public static void ManualDispose(Rectangle1Case testCase)
     {
-        HObject rectangle = null;
+        HObject? rectangle = null;
 
         try
         {
             HOperatorSet.GenRectangle1(
-                out rectangle,
+                out HObject createdRectangle,
                 new HTuple(testCase.Row1),
                 new HTuple(testCase.Column1),
                 new HTuple(testCase.Row2),
                 new HTuple(testCase.Column2));
+            rectangle = createdRectangle;
             HOperatorSet.AreaCenter(rectangle, out HTuple area, out HTuple row, out HTuple column);
             HOperatorSet.CountObj(rectangle, out HTuple count);
 
@@ -72,17 +71,18 @@ public static class GenRectangle1Lifecycle
     /// <summary>方式三：HObjectHandle&lt;HObject&gt; 引用计数句柄，using 出作用域即确定性释放。</summary>
     public static void HandleDispose(Rectangle1Case testCase)
     {
-        HObject rawRectangle = null;
+        HObject? rawRectangle = null;
 
         try
         {
             HOperatorSet.GenRectangle1(
-                out rawRectangle,
+                out HObject createdRectangle,
                 new HTuple(testCase.Row1),
                 new HTuple(testCase.Column1),
                 new HTuple(testCase.Row2),
                 new HTuple(testCase.Column2));
-            using HObjectHandle<HObject> rectangle = HObjectHandle<HObject>.From(rawRectangle);
+            rawRectangle = createdRectangle;
+            using HObjectHandle<HObject> rectangle = HObjectHandle<HObject>.From(createdRectangle);
             rawRectangle = null; // 所有权已转移
 
             HOperatorSet.AreaCenter(rectangle.Value, out HTuple area, out HTuple row, out HTuple column);
@@ -108,7 +108,7 @@ public static class GenRectangle1Lifecycle
     /// <summary>触发 Halcon 首次初始化，避免把初始化成本计入基准。</summary>
     public static void Warmup()
     {
-        HObject rectangle = null;
+        HObject? rectangle = null;
         try
         {
             HOperatorSet.GenRectangle1(out rectangle, new HTuple(0), new HTuple(0), new HTuple(7), new HTuple(7));

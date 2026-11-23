@@ -10,10 +10,11 @@ namespace HObjectMemory.Lifetime;
 /// <typeparam name="T">可释放的资源类型，例如 HalconDotNet.HObject。</typeparam>
 public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>> where T : class, IDisposable
 {
-    private RefCountedOwner<T> _owner;
+    // null 表示空句柄（尚未持有资源或已释放），这是该类型的合法状态。
+    private RefCountedOwner<T>? _owner;
     private int _disposed;
 
-    internal HObjectHandle(RefCountedOwner<T> owner)
+    internal HObjectHandle(RefCountedOwner<T>? owner)
     {
         _owner = owner;
     }
@@ -22,11 +23,10 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
     /// 取得资源的所有权；传入 null 时创建空句柄。
     /// </summary>
     /// <param name="value">资源实例。</param>
-    public HObjectHandle(T value)
+    public HObjectHandle(T? value)
     {
         if (value is null)
         {
-            _owner = null;
             return;
         }
 
@@ -36,7 +36,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
     /// <summary>
     /// 空句柄。所有操作均安全，且不持有任何资源。
     /// </summary>
-    public static HObjectHandle<T> Empty { get; } = new HObjectHandle<T>((RefCountedOwner<T>)null);
+    public static HObjectHandle<T> Empty { get; } = new HObjectHandle<T>((RefCountedOwner<T>?)null);
 
     /// <summary>
     /// 句柄是否不持有有效资源。
@@ -50,7 +50,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
                 return true;
             }
 
-            RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+            RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
             return owner is null || owner.IsDisposed;
         }
     }
@@ -67,7 +67,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
                 throw new ObjectDisposedException(nameof(HObjectHandle<T>));
             }
 
-            RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+            RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
             if (owner is null)
             {
                 throw new ObjectDisposedException(nameof(HObjectHandle<T>));
@@ -98,7 +98,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
             throw new ObjectDisposedException(nameof(HObjectHandle<T>));
         }
 
-        RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+        RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
         if (owner is null)
         {
             return Empty;
@@ -118,7 +118,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
     /// <returns>接管资源的新强句柄。</returns>
     public HObjectHandle<T> Move()
     {
-        RefCountedOwner<T> owner = Interlocked.Exchange(ref _owner, null);
+        RefCountedOwner<T>? owner = Interlocked.Exchange(ref _owner, null);
         if (owner is null)
         {
             return Empty;
@@ -134,11 +134,11 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
     }
 
     /// <summary>
-    /// 尝试读取底层资源，资源已释放时返回 false。
+    /// 尝试读取底层资源，资源已释放时返回 false 且 value 为 null。
     /// </summary>
     /// <param name="value">读取到的资源，失败时为 null。</param>
     /// <returns>是否成功读取。</returns>
-    public bool TryGetValue(out T value)
+    public bool TryGetValue(out T? value)
     {
         if (Volatile.Read(ref _disposed) != 0)
         {
@@ -146,7 +146,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
             return false;
         }
 
-        RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+        RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
         if (owner is null)
         {
             value = null;
@@ -167,7 +167,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
             return HObjectWeakHandle<T>.Empty;
         }
 
-        RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+        RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
         if (owner is null || owner.IsDisposed)
         {
             return HObjectWeakHandle<T>.Empty;
@@ -182,7 +182,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
     /// </summary>
     public void Dispose()
     {
-        RefCountedOwner<T> owner = Interlocked.Exchange(ref _owner, null);
+        RefCountedOwner<T>? owner = Interlocked.Exchange(ref _owner, null);
         if (owner != null)
         {
             Volatile.Write(ref _disposed, 1);
@@ -191,7 +191,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
     }
 
     /// <inheritdoc />
-    public bool Equals(HObjectHandle<T> other)
+    public bool Equals(HObjectHandle<T>? other)
     {
         if (ReferenceEquals(this, other))
         {
@@ -203,12 +203,12 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
             return false;
         }
 
-        RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+        RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
         return owner != null && ReferenceEquals(owner, Volatile.Read(ref other._owner));
     }
 
     /// <inheritdoc />
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         return Equals(obj as HObjectHandle<T>);
     }
@@ -216,7 +216,7 @@ public sealed class HObjectHandle<T> : IDisposable, IEquatable<HObjectHandle<T>>
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        RefCountedOwner<T> owner = Volatile.Read(ref _owner);
+        RefCountedOwner<T>? owner = Volatile.Read(ref _owner);
         return owner is null ? 0 : owner.GetHashCode();
     }
 }

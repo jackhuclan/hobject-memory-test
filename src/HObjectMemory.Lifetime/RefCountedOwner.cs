@@ -6,7 +6,8 @@ namespace HObjectMemory.Lifetime;
 /// <typeparam name="T">需要确定性释放的资源类型。</typeparam>
 internal sealed class RefCountedOwner<T> where T : class, IDisposable
 {
-    private T _value;
+    // 强引用归零后置 null，表示负载已释放；IsDisposed / TryGetValue 依赖这一状态。
+    private T? _value;
     private int _strongCount;
     private int _weakCount;
 
@@ -27,7 +28,7 @@ internal sealed class RefCountedOwner<T> where T : class, IDisposable
     {
         get
         {
-            T value = Volatile.Read(ref _value);
+            T? value = Volatile.Read(ref _value);
             if (value is null)
             {
                 throw new ObjectDisposedException(nameof(RefCountedOwner<T>));
@@ -37,7 +38,7 @@ internal sealed class RefCountedOwner<T> where T : class, IDisposable
         }
     }
 
-    public bool TryGetValue(out T value)
+    public bool TryGetValue(out T? value)
     {
         value = Volatile.Read(ref _value);
         return value is not null;
@@ -72,7 +73,7 @@ internal sealed class RefCountedOwner<T> where T : class, IDisposable
             return;
         }
 
-        T value = Interlocked.Exchange(ref _value, null);
+        T? value = Interlocked.Exchange(ref _value, null);
         try
         {
             value?.Dispose();

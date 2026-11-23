@@ -36,7 +36,7 @@ internal static class Program
 
     private sealed class BenchmarkResult
     {
-        public string Name;
+        public string Name = string.Empty;
         public int Iterations;
         public double TotalMilliseconds;
         public long BaselineBytes;
@@ -136,14 +136,10 @@ internal static class Program
     /// </summary>
     private static void RunOnceWithDirectHObject(int width, int height)
     {
-        HObject image = null;
-        HObject region = null;
-        HObject connected = null;
-
         // 没有 finally / Dispose：托管包装对象离开作用域后只能等待 GC 终结器。
-        HOperatorSet.GenImageConst(out image, "byte", width, height);
-        HOperatorSet.Threshold(image, out region, new HTuple(100), new HTuple(200));
-        HOperatorSet.Connection(region, out connected);
+        HOperatorSet.GenImageConst(out HObject image, "byte", width, height);
+        HOperatorSet.Threshold(image, out HObject region, new HTuple(100), new HTuple(200));
+        HOperatorSet.Connection(region, out HObject connected);
         HOperatorSet.AreaCenter(connected, out HTuple area, out HTuple row, out HTuple column);
         HOperatorSet.CountObj(connected, out HTuple count);
 
@@ -164,22 +160,25 @@ internal static class Program
     /// </summary>
     private static void RunOnceWithHandle(int width, int height)
     {
-        HObject rawImage = null;
-        HObject rawRegion = null;
-        HObject rawConnected = null;
+        HObject? rawImage = null;
+        HObject? rawRegion = null;
+        HObject? rawConnected = null;
 
         try
         {
-            HOperatorSet.GenImageConst(out rawImage, "byte", width, height);
-            using HObjectHandle<HObject> image = HObjectHandle<HObject>.From(rawImage);
+            HOperatorSet.GenImageConst(out HObject createdImage, "byte", width, height);
+            rawImage = createdImage;
+            using HObjectHandle<HObject> image = HObjectHandle<HObject>.From(createdImage);
             rawImage = null; // 所有权已转移，原变量不再使用
 
-            HOperatorSet.Threshold(image.Value, out rawRegion, new HTuple(100), new HTuple(200));
-            using HObjectHandle<HObject> region = HObjectHandle<HObject>.From(rawRegion);
+            HOperatorSet.Threshold(image.Value, out HObject createdRegion, new HTuple(100), new HTuple(200));
+            rawRegion = createdRegion;
+            using HObjectHandle<HObject> region = HObjectHandle<HObject>.From(createdRegion);
             rawRegion = null;
 
-            HOperatorSet.Connection(region.Value, out rawConnected);
-            using HObjectHandle<HObject> connected = HObjectHandle<HObject>.From(rawConnected);
+            HOperatorSet.Connection(region.Value, out HObject createdConnected);
+            rawConnected = createdConnected;
+            using HObjectHandle<HObject> connected = HObjectHandle<HObject>.From(createdConnected);
             rawConnected = null;
 
             HOperatorSet.AreaCenter(connected.Value, out HTuple area, out HTuple row, out HTuple column);
@@ -215,10 +214,8 @@ internal static class Program
     /// </summary>
     private static void RunOnceWithDirectRectangle1(Rectangle1Case testCase)
     {
-        HObject rectangle = null;
-
         HOperatorSet.GenRectangle1(
-            out rectangle,
+            out HObject rectangle,
             new HTuple(testCase.Row1),
             new HTuple(testCase.Column1),
             new HTuple(testCase.Row2),
@@ -241,17 +238,18 @@ internal static class Program
     /// </summary>
     private static void RunOnceWithHandleRectangle1(Rectangle1Case testCase)
     {
-        HObject rawRectangle = null;
+        HObject? rawRectangle = null;
 
         try
         {
             HOperatorSet.GenRectangle1(
-                out rawRectangle,
+                out HObject createdRectangle,
                 new HTuple(testCase.Row1),
                 new HTuple(testCase.Column1),
                 new HTuple(testCase.Row2),
                 new HTuple(testCase.Column2));
-            using HObjectHandle<HObject> rectangle = HObjectHandle<HObject>.From(rawRectangle);
+            rawRectangle = createdRectangle;
+            using HObjectHandle<HObject> rectangle = HObjectHandle<HObject>.From(createdRectangle);
             rawRectangle = null; // 所有权已转移
 
             HOperatorSet.AreaCenter(rectangle.Value, out HTuple area, out HTuple row, out HTuple column);
@@ -345,7 +343,7 @@ internal static class Program
 
         foreach (string name in new[] { "Direct", "Handle" })
         {
-            if (!results.TryGetValue(name, out BenchmarkResult r))
+            if (!results.TryGetValue(name, out BenchmarkResult? r))
             {
                 continue;
             }
@@ -360,7 +358,7 @@ internal static class Program
         Console.WriteLine("  - 内存指标取 PrivateMemorySize64（私有字节），能反映 Halcon 在非托管堆上的分配。");
         Console.WriteLine("  - 执行顺序: " + string.Join(" -> ", order) + "（避免 Direct 的残留影响 Handle 基线）。");
 
-        if (results.TryGetValue("Direct", out BenchmarkResult direct) && results.TryGetValue("Handle", out BenchmarkResult handle))
+        if (results.TryGetValue("Direct", out BenchmarkResult? direct) && results.TryGetValue("Handle", out BenchmarkResult? handle))
         {
             Console.WriteLine($"  - 耗时比 Direct/Handle: {Ratio(direct.TotalMilliseconds, handle.TotalMilliseconds)}");
             Console.WriteLine($"  - 峰值内存增量比 Direct/Handle: {Ratio(direct.PeakDeltaBytes, handle.PeakDeltaBytes)}");
@@ -414,7 +412,7 @@ internal static class Program
         {
             foreach (string name in order)
             {
-                if (!results.TryGetValue($"{name}|{testCase.Name}", out BenchmarkResult r))
+                if (!results.TryGetValue($"{name}|{testCase.Name}", out BenchmarkResult? r))
                 {
                     continue;
                 }
@@ -435,9 +433,8 @@ internal static class Program
 
         foreach (Rectangle1Case testCase in Rectangle1TestData.Cases)
         {
-            bool hasDirect = results.TryGetValue($"Direct|{testCase.Name}", out BenchmarkResult direct);
-            bool hasHandle = results.TryGetValue($"Handle|{testCase.Name}", out BenchmarkResult handle);
-            if (hasDirect && hasHandle)
+            if (results.TryGetValue($"Direct|{testCase.Name}", out BenchmarkResult? direct) &&
+                results.TryGetValue($"Handle|{testCase.Name}", out BenchmarkResult? handle))
             {
                 Console.WriteLine($"  - {testCase.Name}: 耗时比 Direct/Handle={Ratio(direct.TotalMilliseconds, handle.TotalMilliseconds)}, " +
                                   $"Direct 增量={FormatMiB(direct.DeltaBytes)}, Handle 增量={FormatMiB(handle.DeltaBytes)}");
@@ -555,7 +552,7 @@ internal static class Program
         {
             string token = args[i];
             string key = token;
-            string inlineValue = null;
+            string? inlineValue = null;
             int equals = token.IndexOf('=');
             if (equals > 0)
             {
@@ -605,7 +602,7 @@ internal static class Program
         return options;
     }
 
-    private static int ReadInt(string[] args, ref int index, string key, string inlineValue, int minimum)
+    private static int ReadInt(string[] args, ref int index, string key, string? inlineValue, int minimum)
     {
         string text = inlineValue ?? ReadString(args, ref index, key, inlineValue);
         if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) || value < minimum)
@@ -615,7 +612,7 @@ internal static class Program
         return value;
     }
 
-    private static string ReadString(string[] args, ref int index, string key, string inlineValue)
+    private static string ReadString(string[] args, ref int index, string key, string? inlineValue)
     {
         if (inlineValue != null)
         {

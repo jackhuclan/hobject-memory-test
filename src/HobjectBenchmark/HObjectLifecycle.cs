@@ -21,13 +21,9 @@ public static class HObjectLifecycle
     /// </summary>
     public static void DirectNoDispose(int width, int height)
     {
-        HObject image = null;
-        HObject region = null;
-        HObject connected = null;
-
-        HOperatorSet.GenImageConst(out image, "byte", width, height);
-        HOperatorSet.Threshold(image, out region, new HTuple(100), new HTuple(200));
-        HOperatorSet.Connection(region, out connected);
+        HOperatorSet.GenImageConst(out HObject image, "byte", width, height);
+        HOperatorSet.Threshold(image, out HObject region, new HTuple(100), new HTuple(200));
+        HOperatorSet.Connection(region, out HObject connected);
         HOperatorSet.AreaCenter(connected, out HTuple area, out HTuple row, out HTuple column);
         HOperatorSet.CountObj(connected, out HTuple count);
 
@@ -47,15 +43,18 @@ public static class HObjectLifecycle
     /// </summary>
     public static void ManualDispose(int width, int height)
     {
-        HObject image = null;
-        HObject region = null;
-        HObject connected = null;
+        HObject? image = null;
+        HObject? region = null;
+        HObject? connected = null;
 
         try
         {
-            HOperatorSet.GenImageConst(out image, "byte", width, height);
-            HOperatorSet.Threshold(image, out region, new HTuple(100), new HTuple(200));
-            HOperatorSet.Connection(region, out connected);
+            HOperatorSet.GenImageConst(out HObject createdImage, "byte", width, height);
+            image = createdImage;
+            HOperatorSet.Threshold(createdImage, out HObject createdRegion, new HTuple(100), new HTuple(200));
+            region = createdRegion;
+            HOperatorSet.Connection(createdRegion, out HObject createdConnected);
+            connected = createdConnected;
             HOperatorSet.AreaCenter(connected, out HTuple area, out HTuple row, out HTuple column);
             HOperatorSet.CountObj(connected, out HTuple count);
 
@@ -84,22 +83,25 @@ public static class HObjectLifecycle
     /// </summary>
     public static void HandleDispose(int width, int height)
     {
-        HObject rawImage = null;
-        HObject rawRegion = null;
-        HObject rawConnected = null;
+        HObject? rawImage = null;
+        HObject? rawRegion = null;
+        HObject? rawConnected = null;
 
         try
         {
-            HOperatorSet.GenImageConst(out rawImage, "byte", width, height);
-            using HObjectHandle<HObject> image = HObjectHandle<HObject>.From(rawImage);
+            HOperatorSet.GenImageConst(out HObject createdImage, "byte", width, height);
+            rawImage = createdImage;
+            using HObjectHandle<HObject> image = HObjectHandle<HObject>.From(createdImage);
             rawImage = null; // 所有权已转移给句柄
 
-            HOperatorSet.Threshold(image.Value, out rawRegion, new HTuple(100), new HTuple(200));
-            using HObjectHandle<HObject> region = HObjectHandle<HObject>.From(rawRegion);
+            HOperatorSet.Threshold(image.Value, out HObject createdRegion, new HTuple(100), new HTuple(200));
+            rawRegion = createdRegion;
+            using HObjectHandle<HObject> region = HObjectHandle<HObject>.From(createdRegion);
             rawRegion = null;
 
-            HOperatorSet.Connection(region.Value, out rawConnected);
-            using HObjectHandle<HObject> connected = HObjectHandle<HObject>.From(rawConnected);
+            HOperatorSet.Connection(region.Value, out HObject createdConnected);
+            rawConnected = createdConnected;
+            using HObjectHandle<HObject> connected = HObjectHandle<HObject>.From(createdConnected);
             rawConnected = null;
 
             HOperatorSet.AreaCenter(connected.Value, out HTuple area, out HTuple row, out HTuple column);
@@ -132,7 +134,7 @@ public static class HObjectLifecycle
     /// <summary>触发 Halcon 首次初始化（加载原生库、许可证），避免把初始化成本算进基准。</summary>
     public static void Warmup()
     {
-        HObject image = null;
+        HObject? image = null;
         try
         {
             HOperatorSet.GenImageConst(out image, "byte", 8, 8);
