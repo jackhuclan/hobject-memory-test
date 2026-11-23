@@ -261,6 +261,17 @@ dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- 
 
 ---
 
+## 列表场景覆盖
+
+两个项目的**现有生命周期方法内部**已补充列表创建与校验，没有新增任何入口方法：
+
+- `List<HObject>`：在 `Direct` / `ManualDispose` 方法中创建，图像链 3 个元素（`image`、`region`、`connected`），矩形链 1 个元素（`rectangle`）。
+- `List<HObjectHandle<HObject>>`：在 `HandleDispose` 方法中创建，元素为对应的引用计数句柄。
+- 校验内容：列表非 `null`、`Count` 符合预期、每个元素类型正确；句柄列表还检查 `Value` 为 `HObject`。校验失败立即抛出 `InvalidOperationException`。
+- 列表 `Count` 计入 `sink`，避免校验逻辑被优化掉。
+
+这些逻辑随原有入口和基准一起执行，不产生独立命令；因为增加了少量托管分配，绝对耗时/内存数值会与未加列表校验时略有差异，但各策略之间的对比口径保持一致。
+
 ## 如何选择
 
 | 需求 | 推荐项目 |

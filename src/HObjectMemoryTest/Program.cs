@@ -147,7 +147,15 @@ internal static class Program
         HOperatorSet.AreaCenter(connected, out HTuple area, out HTuple row, out HTuple column);
         HOperatorSet.CountObj(connected, out HTuple count);
 
-        _sink += area.Length + row.Length + column.Length + count.Length;
+        // 列表场景：创建 List<HObject> 并验证初始化、添加及元素类型/数量。
+        List<HObject> objects = new(3) { image, region, connected };
+        if (objects is null || objects.Count != 3 ||
+            objects[0] is not HObject || objects[1] is not HObject || objects[2] is not HObject)
+        {
+            throw new InvalidOperationException("List<HObject> 初始化或元素校验失败");
+        }
+
+        _sink += area.Length + row.Length + column.Length + count.Length + objects.Count;
     }
 
     /// <summary>
@@ -177,7 +185,20 @@ internal static class Program
             HOperatorSet.AreaCenter(connected.Value, out HTuple area, out HTuple row, out HTuple column);
             HOperatorSet.CountObj(connected.Value, out HTuple count);
 
-            _sink += area.Length + row.Length + column.Length + count.Length;
+            // 列表场景：创建 List<HObjectHandle<HObject>> 并验证初始化、添加及元素类型/数量。
+            List<HObjectHandle<HObject>> handles = new(3) { image, region, connected };
+            if (handles is null || handles.Count != 3 ||
+                handles[0] is not HObjectHandle<HObject> ||
+                handles[1] is not HObjectHandle<HObject> ||
+                handles[2] is not HObjectHandle<HObject> ||
+                handles[0].Value is not HObject ||
+                handles[1].Value is not HObject ||
+                handles[2].Value is not HObject)
+            {
+                throw new InvalidOperationException("List<HObjectHandle<HObject>> 初始化或元素校验失败");
+            }
+
+            _sink += area.Length + row.Length + column.Length + count.Length + handles.Count;
         }
         finally
         {
@@ -205,7 +226,14 @@ internal static class Program
         HOperatorSet.AreaCenter(rectangle, out HTuple area, out HTuple row, out HTuple column);
         HOperatorSet.CountObj(rectangle, out HTuple count);
 
-        _sink += area.Length + row.Length + column.Length + count.Length;
+        // 列表场景：创建 List<HObject> 并验证初始化、添加及元素类型/数量。
+        List<HObject> objects = new(1) { rectangle };
+        if (objects is null || objects.Count != 1 || objects[0] is not HObject)
+        {
+            throw new InvalidOperationException("List<HObject> 初始化或元素校验失败");
+        }
+
+        _sink += area.Length + row.Length + column.Length + count.Length + objects.Count;
     }
 
     /// <summary>
@@ -229,7 +257,15 @@ internal static class Program
             HOperatorSet.AreaCenter(rectangle.Value, out HTuple area, out HTuple row, out HTuple column);
             HOperatorSet.CountObj(rectangle.Value, out HTuple count);
 
-            _sink += area.Length + row.Length + column.Length + count.Length;
+            // 列表场景：创建 List<HObjectHandle<HObject>> 并验证初始化、添加及元素类型/数量。
+            List<HObjectHandle<HObject>> handles = new(1) { rectangle };
+            if (handles is null || handles.Count != 1 ||
+                handles[0] is not HObjectHandle<HObject> || handles[0].Value is not HObject)
+            {
+                throw new InvalidOperationException("List<HObjectHandle<HObject>> 初始化或元素校验失败");
+            }
+
+            _sink += area.Length + row.Length + column.Length + count.Length + handles.Count;
         }
         finally
         {
