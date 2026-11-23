@@ -19,8 +19,11 @@ GenImageConst → Threshold → Connection → AreaCenter / CountObj
 └── src/
     ├── HObjectLifetime.slnx           # 统一解决方案，包含下列 3 个项目
     ├── HObjectMemory.Lifetime/        # 自定义 HObjectHandle<T> 引用计数句柄类库
+    │   └── Rectangle1TestData.cs      # 两个项目共用的 GenRectangle1 参数用例
     ├── HObjectMemoryTest/             # 项目一：低 GC 压力的自定义基准
     └── HobjectBenchmark/              # 项目二：BenchmarkDotNet 基准
+        ├── GenRectangle1Lifecycle.cs  # GenRectangle1 三种生命周期实现
+        └── GenRectangle1Benchmarks.cs # GenRectangle1 独立基准入口
 ```
 
 > `HObjectHandle<T>` 是本仓库 `HObjectMemory.Lifetime` 项目中的**自定义引用计数句柄**，不是 Halcon 内置类型。它支持 `Share()` 共享、`Move()` 转移、`AsWeak()` 弱观察，并保证最后一个强句柄释放时底层资源只 `Dispose` 一次。
@@ -43,8 +46,12 @@ dotnet build src/HObjectLifetime.slnx -c Release
 # 2. 运行项目一：低 GC 压力对比
 dotnet run --project src/HObjectMemoryTest/HObjectMemoryTest.csproj -c Release -- --iterations 1000 --width 512 --height 512
 
-# 3. 运行项目二：BenchmarkDotNet 基准
+# 3. 运行项目一的 GenRectangle1 对比（独立入口）
+dotnet run --project src/HObjectMemoryTest/HObjectMemoryTest.csproj -c Release -- --operator rectangle1 --iterations 500
+
+# 4. 运行项目二：BenchmarkDotNet 基准
 dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- --list flat
+dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- --filter "*GenRectangle1Benchmarks*"
 dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- --filter "*"
 ```
 
@@ -132,6 +139,33 @@ dotnet run --project src/HObjectMemoryTest/HObjectMemoryTest.csproj -c Release -
 - `GC后增量` 是判断“终结器兜底”还是“真实泄漏”的关键：若强制 GC 后仍不回落，说明原生资源仍被占用。
 - 结果受机器、Halcon 版本、License 和后台负载影响；比较时应固定其余参数，多次运行取趋势而非单次绝对值。
 
+### GenRectangle1 对比测试（独立入口）
+
+通过 `--operator rectangle1` 启用，与默认图像算子链完全隔离，不传入该参数时原有测试不变：
+
+```bash
+dotnet run --project src/HObjectMemoryTest/HObjectMemoryTest.csproj -c Release -- --operator rectangle1 --iterations 500 --warmup 20
+
+# 只跑一种生命周期策略
+dotnet run --project src/HObjectMemoryTest/HObjectMemoryTest.csproj -c Release -- --operator rectangle1 --group handle --iterations 1000
+```
+
+每个用例执行 `GenRectangle1 → AreaCenter/CountObj`，`Handle` 组用 `HObjectHandle<HObject>` 包装并确定性释放，`Direct` 组不调用 `Dispose`。用例定义在 `HObjectMemory.Lifetime/Rectangle1TestData.cs`，两个项目共用：
+
+| 用例名 | 坐标 (Row1,Col1)-(Row2,Col2) | 区域尺寸 | 覆盖点 |
+|---|---|---:|---|
+| `Normal_256x256` | (64,64)-(319,319) | 256×256 | 正常矩形 |
+| `Small_1x1` | (10,10)-(10,10) | 1×1 | 两个维度均取边界相等值 |
+| `Wide_512x8` | (10,10)-(17,521) | 512×8 | 宽扁尺寸 |
+| `Tall_8x512` | (10,10)-(521,17) | 8×512 | 高窄尺寸 |
+| `Large_1024x1024` | (0,0)-(1023,1023) | 1024×1024 | 从原点起始的大尺寸 |
+| `Line_ZeroWidth` | (100,100)-(199,100) | 1×100 | `Column2 == Column1` 零宽退化 |
+| `NegativeOrigin` | (-50,-20)-(20,30) | 51×71 | 负坐标起点 |
+
+输出表格在原有列基础上增加 **用例**、**坐标**、**区域(宽x高)** 三列；每个用例独立预热并强制 GC，因此基线互不污染。表格下方逐用例给出 `耗时比 Direct/Handle` 与两组的内存增量，最后附 `sink` 校验值。
+
+注意：Halcon 约束 `Row2 >= Row1` 且 `Column2 >= Column1`，上述用例均满足；不要传入 `Row2 < Row1` 或 `Column2 < Column1` 的参数，否则算子会抛异常。
+
 ---
 
 ## 二、HobjectBenchmark
@@ -205,6 +239,26 @@ dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- 
 - 配置中显式使用 `CoreRuntime.Core80`，目标机缺少 .NET 8 运行时会加载失败；如需改用其他运行时，请修改 `HObjectBenchmarkConfig` 后重建。
 - 基准运行期间不要并行执行其他高负载任务，否则耗时与内存采样都会失真。
 
+### GenRectangle1 性能基准（独立基准类）
+
+`GenRectangle1Benchmarks` 是与 `HObjectLifecycleBenchmarks` 并列的独立基准类，复用同一个 `HObjectBenchmarkConfig`（InProcess + MemoryDiagnoser + PrivateBytesDiagnoser），通过用例名参数覆盖与上表相同的 7 组矩形数据：
+
+```bash
+# 只跑新增的 GenRectangle1 基准（3 个方法 × 7 个用例 = 21 个用例）
+dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- --filter "*GenRectangle1Benchmarks*"
+
+# 只跑其中一个方法或某一个用例
+dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- --filter "*GenRectangle1Benchmarks.HandleDispose*"
+
+# 只跑某个参数用例（用例名会进入 BenchmarkDotNet 的用例标识，可被 --filter 匹配）
+dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- --filter "*Small_1x1*"
+```
+
+- `CaseName`：由 `[ParamsSource]` 从 `Rectangle1TestData.Cases` 自动生成，汇总表中直接显示用例名。
+- `Iterations`：由 `[Params(200)]` 控制每次调用内部的 `GenRectangle1` 次数；修改后需重新构建。
+- 汇总表在原有列之外增加 `CaseName` 与 `Iterations`，性能结论按用例分别查看，不要跨尺寸直接比较 Mean。
+- 命令行的 `--job Dry` 会在配置自带的 Job 之外**追加**一个 Job，因此用例数会翻倍（21 → 42），仅适合快速冒烟，不宜当作正式结果。
+
 ---
 
 ## 如何选择
@@ -216,10 +270,12 @@ dotnet run --project src/HobjectBenchmark/HobjectBenchmark.csproj -c Release -- 
 | 获取带统计意义的性能对比与 Baseline 倍率 | `HobjectBenchmark` |
 | 同时看托管分配与非托管内存增量 | `HobjectBenchmark` |
 | 验证 `HObjectHandle<T>` 自身语义是否正确 | `HObjectMemoryTest`（启动自检） |
+| 单独验证 `GenRectangle1` 的对象创建/释放与内存表现 | `HObjectMemoryTest --operator rectangle1` |
+| 获取 `GenRectangle1` 各尺寸与边界参数的性能数据 | `HobjectBenchmark` 的 `GenRectangle1Benchmarks` |
 
 ## 实践建议
 
 1. 生产代码不要依赖终结器释放 Halcon 对象；GC 触发时机不可控，低分配压力阶段可能长时间不触发。
 2. 优先使用 `HObjectHandle<HObject>` + `using`；简单线性脚本可用 `try/finally` 手动 `Dispose`，但必须登记每个中间对象。
-3. 排查内存问题时，先用 `HObjectMemoryTest --group direct` 复现增长，再用 `HobjectBenchmark` 量化性能差异。
+3. 排查内存问题时，先用 `HObjectMemoryTest --group direct` 复现增长，再用 `HobjectBenchmark` 量化性能差异；针对 `GenRectangle1` 这类具体算子，改用 `--operator rectangle1` 与 `GenRectangle1Benchmarks` 做同口径对比。
 4. 任何结论都要在目标 Halcon 版本、图像尺寸和部署环境上重新验证。

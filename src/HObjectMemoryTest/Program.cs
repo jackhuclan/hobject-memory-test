@@ -31,6 +31,7 @@ internal static class Program
         public int Height = 512;
         public int SampleEvery; // 0 = 自动
         public string Group = "both";
+        public string Operator = "chain"; // chain | rectangle1
     }
 
     private sealed class BenchmarkResult
@@ -80,7 +81,7 @@ internal static class Program
         Console.WriteLine("[自检] HObjectHandle 共享/转移/幂等/弱引用语义全部通过。");
 
         Console.WriteLine("=== Halcon HObject 生命周期基准测试 ===");
-        Console.WriteLine($"配置: iterations={options.Iterations}, warmup={options.Warmup}, " +
+        Console.WriteLine($"配置: operator={options.Operator}, iterations={options.Iterations}, warmup={options.Warmup}, " +
                           $"image={options.Width}x{options.Height}, group={options.Group}");
         Console.WriteLine($"环境: {RuntimeInformation.FrameworkDescription}, x64={Environment.Is64BitProcess}, " +
                           $"HalconDotNet={typeof(HOperatorSet).Assembly.GetName().Version}");
@@ -94,6 +95,13 @@ internal static class Program
             "handle" => new[] { "Handle" },
             _ => throw new ArgumentException("--group 只能是 both / direct / handle")
         };
+
+        // GenRectangle1 有独立的入口与输出，默认 chain 模式的行为保持不变。
+        if (options.Operator == "rectangle1")
+        {
+            RunRectangle1Benchmarks(options, order);
+            return 0;
+        }
 
         var results = new Dictionary<string, BenchmarkResult>(StringComparer.OrdinalIgnoreCase);
         Action<int, int> handleBody = RunOnceWithHandle;
@@ -178,6 +186,55 @@ internal static class Program
             rawImage?.Dispose();
             rawRegion?.Dispose();
             rawConnected?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// GenRectangle1 的 Direct 写法：创建矩形对象但不主动 Dispose。
+    /// </summary>
+    private static void RunOnceWithDirectRectangle1(Rectangle1Case testCase)
+    {
+        HObject rectangle = null;
+
+        HOperatorSet.GenRectangle1(
+            out rectangle,
+            new HTuple(testCase.Row1),
+            new HTuple(testCase.Column1),
+            new HTuple(testCase.Row2),
+            new HTuple(testCase.Column2));
+        HOperatorSet.AreaCenter(rectangle, out HTuple area, out HTuple row, out HTuple column);
+        HOperatorSet.CountObj(rectangle, out HTuple count);
+
+        _sink += area.Length + row.Length + column.Length + count.Length;
+    }
+
+    /// <summary>
+    /// GenRectangle1 的 Handle 写法：矩形对象交由引用计数句柄，using 出作用域即确定性释放。
+    /// </summary>
+    private static void RunOnceWithHandleRectangle1(Rectangle1Case testCase)
+    {
+        HObject rawRectangle = null;
+
+        try
+        {
+            HOperatorSet.GenRectangle1(
+                out rawRectangle,
+                new HTuple(testCase.Row1),
+                new HTuple(testCase.Column1),
+                new HTuple(testCase.Row2),
+                new HTuple(testCase.Column2));
+            using HObjectHandle<HObject> rectangle = HObjectHandle<HObject>.From(rawRectangle);
+            rawRectangle = null; // 所有权已转移
+
+            HOperatorSet.AreaCenter(rectangle.Value, out HTuple area, out HTuple row, out HTuple column);
+            HOperatorSet.CountObj(rectangle.Value, out HTuple count);
+
+            _sink += area.Length + row.Length + column.Length + count.Length;
+        }
+        finally
+        {
+            // 算子在创建句柄之前抛错时的兜底释放。
+            rawRectangle?.Dispose();
         }
     }
 
@@ -276,6 +333,82 @@ internal static class Program
 
         Console.WriteLine("  - 重复运行请加 -c Release；需要绝对隔离时可分别执行 --group handle / --group direct。");
         Console.WriteLine($"  - 本次采样间隔: {(options.SampleEvery > 0 ? options.SampleEvery.ToString(CultureInfo.InvariantCulture) : "自动")}。");
+    }
+
+    /// <summary>
+    /// GenRectangle1 独立入口：每个参数用例独立预热、独立强制 GC，逐用例输出对比结果。
+    /// </summary>
+    private static void RunRectangle1Benchmarks(Options options, string[] order)
+    {
+        var results = new Dictionary<string, BenchmarkResult>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (Rectangle1Case testCase in Rectangle1TestData.Cases)
+        {
+            foreach (string name in order)
+            {
+                Action<int, int> body = name == "Direct"
+                    ? (_, __) => RunOnceWithDirectRectangle1(testCase)
+                    : (_, __) => RunOnceWithHandleRectangle1(testCase);
+
+                for (int i = 0; i < options.Warmup; i++)
+                {
+                    body(options.Width, options.Height);
+                }
+
+                ForceFullGc();
+                BenchmarkResult result = Measure(name, options, body);
+                results[$"{name}|{testCase.Name}"] = result;
+                Console.WriteLine($"[{name}/{testCase.Name}] 完成: {result.TotalMilliseconds:F1} ms, " +
+                                  $"内存增量 {FormatMiB(result.DeltaBytes)}, 峰值增量 {FormatMiB(result.PeakDeltaBytes)}");
+            }
+        }
+
+        PrintRectangle1Report(results, order);
+    }
+
+    private static void PrintRectangle1Report(IReadOnlyDictionary<string, BenchmarkResult> results, string[] order)
+    {
+        static string Num(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+        Console.WriteLine();
+        Console.WriteLine("| 组     | 用例              | 坐标 (r1,c1)-(r2,c2) | 区域(宽x高) | 迭代 | 总耗时(ms) | 平均(us/次) | 增量(MB) | 峰值增量(MB) | GC后增量(MB) | GC 0/1/2 |");
+        Console.WriteLine("|--------|-------------------|----------------------|-------------|-----:|-----------:|------------:|---------:|-------------:|-------------:|----------|");
+
+        foreach (Rectangle1Case testCase in Rectangle1TestData.Cases)
+        {
+            foreach (string name in order)
+            {
+                if (!results.TryGetValue($"{name}|{testCase.Name}", out BenchmarkResult r))
+                {
+                    continue;
+                }
+
+                Console.WriteLine($"| {r.Name,-6} | {testCase.Name,-17} | " +
+                                  $"({Num(testCase.Row1)},{Num(testCase.Column1)})-({Num(testCase.Row2)},{Num(testCase.Column2)}) | " +
+                                  $"{Num(testCase.Width)}x{Num(testCase.Height)} | {r.Iterations,5} | " +
+                                  $"{r.TotalMilliseconds,10:F1} | {r.AverageMicroseconds,11:F1} | " +
+                                  $"{ToMiB(r.DeltaBytes),8:F1} | {ToMiB(r.PeakDeltaBytes),12:F1} | " +
+                                  $"{ToMiB(r.AfterGcDeltaBytes),12:F1} | {r.Gc0}/{r.Gc1}/{r.Gc2} |");
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("说明:");
+        Console.WriteLine("  - 每个用例独立预热并强制 GC，逐用例基线互不污染。");
+        Console.WriteLine("  - 内存指标取 PrivateMemorySize64，含 Halcon 非托管内存。");
+
+        foreach (Rectangle1Case testCase in Rectangle1TestData.Cases)
+        {
+            bool hasDirect = results.TryGetValue($"Direct|{testCase.Name}", out BenchmarkResult direct);
+            bool hasHandle = results.TryGetValue($"Handle|{testCase.Name}", out BenchmarkResult handle);
+            if (hasDirect && hasHandle)
+            {
+                Console.WriteLine($"  - {testCase.Name}: 耗时比 Direct/Handle={Ratio(direct.TotalMilliseconds, handle.TotalMilliseconds)}, " +
+                                  $"Direct 增量={FormatMiB(direct.DeltaBytes)}, Handle 增量={FormatMiB(handle.DeltaBytes)}");
+            }
+        }
+
+        Console.WriteLine($"  - 校验值 sink={_sink}（非 0 表示算子结果确实被计算）");
     }
 
     private static string Ratio(double numerator, double denominator)
@@ -421,6 +554,14 @@ internal static class Program
                         throw new ArgumentException("--group 只能是 both / direct / handle");
                     }
                     break;
+                case "-op":
+                case "--operator":
+                    options.Operator = ReadString(args, ref i, key, inlineValue).ToLowerInvariant();
+                    if (options.Operator is not ("chain" or "rectangle1"))
+                    {
+                        throw new ArgumentException("--operator 只能是 chain / rectangle1");
+                    }
+                    break;
                 default:
                     throw new ArgumentException("未知参数: " + token);
             }
@@ -457,6 +598,7 @@ internal static class Program
         Console.WriteLine("用法: dotnet run -c Release -- [选项]");
         Console.WriteLine();
         Console.WriteLine("选项:");
+        Console.WriteLine("  -op, --operator NAME  chain（默认，图像算子链）| rectangle1（GenRectangle1 用例）");
         Console.WriteLine("  -n, --iterations N   每组迭代次数（默认 2000）");
         Console.WriteLine("  -w, --warmup N       每组预热次数（默认 200）");
         Console.WriteLine("      --width N        图像宽度（默认 512）");
@@ -468,6 +610,7 @@ internal static class Program
         Console.WriteLine("示例:");
         Console.WriteLine("  dotnet run -c Release -- --iterations 5000 --width 1024 --height 1024");
         Console.WriteLine("  dotnet run -c Release -- --group handle --iterations 10000");
+        Console.WriteLine("  dotnet run -c Release -- --operator rectangle1 --iterations 500 --warmup 20");
         Console.WriteLine("  dotnet build -p:HalconDotNetPath=\"D:\\MVTec\\HALCON-24.05\\bin\\dotnet\\halcondotnetxl.dll\"");
     }
 }
