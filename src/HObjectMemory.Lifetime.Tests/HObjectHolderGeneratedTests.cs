@@ -10,7 +10,7 @@ public sealed class HObjectHolderGeneratedTests
     public void GenImageConst_Success_TracksOutputUntilHolderDispose()
     {
         TestHelpers.RequireHalconRuntime();
-        HObjectHolder holder = new();
+        IHObjectHolder holder = new HObjectHolder();
 
         holder.GenImageConst(out HObjectWeakHandle<HObject> image, "byte", 16, 16);
 
@@ -32,7 +32,7 @@ public sealed class HObjectHolderGeneratedTests
     public void Threshold_OperatorThrows_OutputIsEmptyAndNoAnchorRegistered()
     {
         TestHelpers.RequireHalconRuntime();
-        using HObjectHolder holder = new();
+        using IHObjectHolder holder = new HObjectHolder();
         HOperatorSet.GenImageConst(out HObject image, "byte", 16, 16);
 
         HObjectWeakHandle<HObject> region = HObjectWeakHandle<HObject>.Empty;
@@ -48,7 +48,7 @@ public sealed class HObjectHolderGeneratedTests
     public void Watersheds_MultipleOutputs_AreAllTrackedAndCanBeReleasedIndependently()
     {
         TestHelpers.RequireHalconRuntime();
-        using HObjectHolder holder = new();
+        using IHObjectHolder holder = new HObjectHolder();
         HOperatorSet.GenImageConst(out HObject source, "byte", 32, 32);
 
         holder.Watersheds(source, out HObjectWeakHandle<HObject> basins, out HObjectWeakHandle<HObject> watersheds);
@@ -82,7 +82,7 @@ public sealed class HObjectHolderGeneratedTests
         foreach (MethodInfo method in wrappers)
         {
             // 每个算子使用独立 Holder：部分算子接受空输入并成功返回，其余走异常路径。
-            using HObjectHolder holder = new();
+            using IHObjectHolder holder = new HObjectHolder();
             object?[] arguments = method.GetParameters()
                 .Select<ParameterInfo, object?>(parameter =>
                     parameter.ParameterType.IsByRef ||
@@ -107,7 +107,7 @@ public sealed class HObjectHolderGeneratedTests
     public void Watersheds_OperatorThrows_AllOutputsAreEmpty()
     {
         TestHelpers.RequireHalconRuntime();
-        using HObjectHolder holder = new();
+        using IHObjectHolder holder = new HObjectHolder();
         HObject invalidSource = new();
 
         HObjectWeakHandle<HObject> basins = HObjectWeakHandle<HObject>.Empty;

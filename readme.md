@@ -17,12 +17,14 @@ GenImageConst → Threshold → Connection → AreaCenter / CountObj
 │   ├── halcondotnetxl.dll
 │   └── halconxl.dll
 ├── tools/
-│   └── HObjectHolderGenerator/        # 根据 Halcon 元数据生成全部 out HObject 包装方法
+│   └── HObjectHolderGenerator/        # 根据 Halcon 元数据生成全部 out HObject 包装方法与接口声明
 └── src/
     ├── HObjectLifetime.slnx           # 统一解决方案，包含下列 6 个项目
     ├── HObjectMemory.Lifetime/        # 自定义 HObjectHandle<T> 引用计数句柄类库
-    │   ├── HObjectHolder.cs           # out HObject 算子的生命周期包装核心
+    │   ├── HObjectHolder.cs           # out HObject 算子的生命周期包装核心，实现 IHObjectHolder
+    │   ├── IHObjectHolder.cs          # HObjectHolder 核心公共契约
     │   ├── HObjectHolder.Generated.cs # 生成的 598 个包装方法（勿手改）
+    │   ├── IHObjectHolder.Generated.cs # 生成的 598 个接口声明（勿手改）
     │   └── Rectangle1TestData.cs      # 两个项目共用的 GenRectangle1 参数用例
     ├── HObjectMemory.Lifetime.Tests/  # MSTest 单元测试：类库全部类型与分支
     ├── HObjectMemoryTest/             # 项目一：低 GC 压力的自定义基准
@@ -37,6 +39,8 @@ GenImageConst → Threshold → Connection → AreaCenter / CountObj
 ## HObjectHolder：out HObject 算子的生命周期包装
 
 `HObjectHolder` 把 `HOperatorSet` 中所有以 `out HObject` 输出结果的方法包装为 `out HObjectWeakHandle<HObject>`。当前 HALCON 24.5 XL 下共 598 个方法、683 个 `out HObject` 参数（含 55 个多输出方法）；生成规则由 `tools/HObjectHolderGenerator` 从程序集元数据推导，**返回类型、参数名、参数顺序、其他参数的 out/ref 语义均与原方法一致**，唯一变化是输出参数类型。
+
+公共契约由 `IHObjectHolder` 定义：核心生命周期成员位于 `IHObjectHolder.cs`，598 个算子包装声明位于 `IHObjectHolder.Generated.cs`，`HObjectHolder` 实现该接口。业务代码可使用 `IHObjectHolder holder = new HObjectHolder();` 依赖抽象；原有 `HObjectHolder` 具体类型声明与调用保持兼容。
 
 核心成员与流程：
 
@@ -53,7 +57,7 @@ GenImageConst → Threshold → Connection → AreaCenter / CountObj
 异常安全：算子调用失败时，包装方法释放已经写入的 `out HObject`、把输出置为空弱句柄，并原样重抛原始异常；多输出场景一次性提交锚点，避免部分登记。并发场景通过锁保护锚点集合，`HObjectHolderVerify` 用 64 路并行调用与重复 `Dispose` 做了覆盖。
 
 ```bash
-# 重新生成包装方法（HALCON 版本变化后执行）
+# 重新生成包装方法与接口声明（HALCON 版本变化后执行；第三个参数可省略，默认生成同目录 IHObjectHolder.Generated.cs）
 dotnet run --project tools/HObjectHolderGenerator -- dlls/halcondotnetxl.dll src/HObjectMemory.Lifetime/HObjectHolder.Generated.cs
 
 # 验证签名一致性与生命周期边界

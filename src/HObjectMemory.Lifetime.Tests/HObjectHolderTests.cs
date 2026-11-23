@@ -9,7 +9,7 @@ public sealed class HObjectHolderTests
     [TestMethod]
     public void NewHolder_IsActiveAndHasNoAnchors()
     {
-        using HObjectHolder holder = new();
+        using IHObjectHolder holder = new HObjectHolder();
 
         Assert.IsFalse(holder.IsDisposed);
         Assert.AreEqual(0, holder.TrackedObjectCount);

@@ -37,7 +37,7 @@ internal static class Program
     private static void VerifySingleOutputLifecycle()
     {
         Console.WriteLine("\n-- 单输出生命周期 --");
-        HObjectHolder holder = new();
+        IHObjectHolder holder = new HObjectHolder();
         holder.GenImageConst(out HObjectWeakHandle<HObject> imageWeak, "byte", 32, 32);
 
         Check(imageWeak.IsAlive, "算子输出后弱句柄存活");
@@ -66,7 +66,7 @@ internal static class Program
     private static void VerifyExceptionSafety()
     {
         Console.WriteLine("\n-- 异常安全 --");
-        using HObjectHolder holder = new();
+        using IHObjectHolder holder = new HObjectHolder();
         HOperatorSet.GenImageConst(out HObject image, "byte", 16, 16);
 
         int before = holder.TrackedObjectCount;
@@ -90,7 +90,7 @@ internal static class Program
     private static void VerifyMultipleOutputs()
     {
         Console.WriteLine("\n-- 多 out HObject --");
-        using HObjectHolder holder = new();
+        using IHObjectHolder holder = new HObjectHolder();
         holder.GenImageConst(out HObjectWeakHandle<HObject> source, "byte", 32, 32);
         using (HObjectHandle<HObject> sourceHandle = holder.Borrow(source))
         {
@@ -109,7 +109,7 @@ internal static class Program
     private static void VerifyExternalDispose()
     {
         Console.WriteLine("\n-- HObject 已被外部释放 --");
-        using HObjectHolder holder = new();
+        using IHObjectHolder holder = new HObjectHolder();
         holder.GenImageConst(out HObjectWeakHandle<HObject> weak, "byte", 8, 8);
         HObjectHandle<HObject> strong = holder.Borrow(weak);
 
@@ -124,7 +124,7 @@ internal static class Program
     private static void VerifyAfterHolderDispose()
     {
         Console.WriteLine("\n-- 容器释放后的调用 --");
-        HObjectHolder holder = new();
+        IHObjectHolder holder = new HObjectHolder();
         holder.Dispose();
 
         bool threw = false;
@@ -143,7 +143,7 @@ internal static class Program
     private static void VerifyConcurrency()
     {
         Console.WriteLine("\n-- 多线程访问 --");
-        using HObjectHolder holder = new();
+        using IHObjectHolder holder = new HObjectHolder();
         HObjectWeakHandle<HObject>[] weaks = new HObjectWeakHandle<HObject>[64];
 
         Parallel.For(0, weaks.Length, i => holder.GenImageConst(out weaks[i], "byte", 8, 8));

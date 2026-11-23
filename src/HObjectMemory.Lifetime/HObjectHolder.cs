@@ -8,12 +8,13 @@ namespace HObjectMemory.Lifetime;
 /// 在最后一个强引用归零时确定性 Dispose 底层 HObject。
 /// </summary>
 /// <remarks>
-/// 典型用法：<c>using var holder = new HObjectHolder(); holder.Threshold(image, out var region, 0, 128);</c>
+/// 典型用法：<c>using IHObjectHolder holder = new HObjectHolder(); holder.Threshold(image, out var region, 0, 128);</c>
 /// 需要把 weak 传给普通 Halcon 算子时，用 <see cref="Borrow"/> / <see cref="TryBorrow"/> 取得强句柄，
 /// 并 Dispose 该强句柄。不要从 <see cref="HObjectHandle{T}.Value"/> 逃逸出原始 HObject 的长期引用。
-/// 生成的包装方法位于 HObjectHolder.Generated.cs，由 tools/HObjectHolderGenerator 产出。
+/// 公共契约由 <see cref="IHObjectHolder"/> 定义；生成的包装方法位于 HObjectHolder.Generated.cs，
+/// 对应的接口声明位于 IHObjectHolder.Generated.cs，均由 tools/HObjectHolderGenerator 产出。
 /// </remarks>
-public sealed partial class HObjectHolder : IDisposable
+public sealed partial class HObjectHolder : IHObjectHolder
 {
     private readonly object _gate = new();
     private readonly List<HObjectHandle<HObject>> _anchors = new();
